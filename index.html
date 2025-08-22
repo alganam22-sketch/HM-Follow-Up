@@ -1,0 +1,213 @@
+import sys
+import sqlite3
+from datetime import datetime
+from PyQt5 import QtWidgets, QtCore, QtGui
+
+# ===== قاعدة البيانات =====
+def init_db():
+    conn = sqlite3.connect("tickets.db")
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS tickets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticket_number TEXT UNIQUE,
+                    account_name TEXT,
+                    platform TEXT,
+                    open_date TEXT,
+                    open_time TEXT,
+                    close_time TEXT,
+                    reminder_6h TEXT,
+                    reminder_24h TEXT,
+                    reminder_48h TEXT,
+                    close_reason TEXT,
+                    agent TEXT
+                )''')
+    conn.commit()
+    conn.close()
+
+# ===== واجهة تسجيل الدخول =====
+class LoginWindow(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("HM Follow Up - Login")
+        self.setGeometry(500, 200, 500, 350)
+
+        # تعيين خلفية
+        self.setAutoFillBackground(True)
+        palette = self.palette()
+        palette.setBrush(self.backgroundRole(), QtGui.QBrush(QtGui.QPixmap("bg.jpg")))
+        self.setPalette(palette)
+
+        layout = QtWidgets.QVBoxLayout()
+
+        # شعار
+        logo = QtWidgets.QLabel()
+        logo.setPixmap(QtGui.QPixmap("logo.png").scaled(120, 120, QtCore.Qt.KeepAspectRatio))
+        logo.setAlignment(QtCore.Qt.AlignCenter)
+        layout.addWidget(logo)
+
+        # إدخال المستخدم وكلمة السر
+        self.user_input = QtWidgets.QLineEdit()
+        self.user_input.setPlaceholderText("اسم المستخدم / Username")
+        self.user_input.setStyleSheet("padding:8px; font-size:14px;")
+        layout.addWidget(self.user_input)
+
+        self.pass_input = QtWidgets.QLineEdit()
+        self.pass_input.setPlaceholderText("كلمة المرور / Password")
+        self.pass_input.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.pass_input.setStyleSheet("padding:8px; font-size:14px;")
+        layout.addWidget(self.pass_input)
+
+        self.login_btn = QtWidgets.QPushButton("تسجيل الدخول / Login")
+        self.login_btn.setStyleSheet("background-color:#2E8B57; color:white; padding:10px; font-size:14px;")
+        self.login_btn.clicked.connect(self.check_login)
+        layout.addWidget(self.login_btn)
+
+        self.setLayout(layout)
+
+    def check_login(self):
+        user = self.user_input.text()
+        password = self.pass_input.text()
+
+        if user == "Abdullah" and password == "A":
+            self.main = MainWindow(user)
+            self.main.show()
+            self.close()
+        else:
+            QtWidgets.QMessageBox.warning(self, "خطأ", "اسم المستخدم أو كلمة المرور غير صحيحة")
+
+# ===== واجهة التذاكر =====
+class MainWindow(QtWidgets.QWidget):
+    def __init__(self, agent):
+        super().__init__()
+        self.agent = agent
+        self.setWindowTitle("HM Follow Up - Dashboard")
+        self.setGeometry(200, 100, 950, 550)
+        self.setStyleSheet("background-color:#f4f4f4; font-size:13px;")
+
+        layout = QtWidgets.QVBoxLayout()
+
+        # شريط علوي ملون
+        header = QtWidgets.QLabel("📋 نظام متابعة التذاكر - HM Follow Up")
+        header.setAlignment(QtCore.Qt.AlignCenter)
+        header.setStyleSheet("background-color:#2E8B57; color:white; padding:10px; font-size:16px; font-weight:bold;")
+        layout.addWidget(header)
+
+        # الإحصائيات
+        stats_layout = QtWidgets.QHBoxLayout()
+        self.total_label = QtWidgets.QLabel("إجمالي التذاكر: 0")
+        self.open_label = QtWidgets.QLabel("المفتوحة: 0")
+        self.closed_label = QtWidgets.QLabel("المغلقة: 0")
+        for lbl in [self.total_label, self.open_label, self.closed_label]:
+            lbl.setStyleSheet("background:#fff; border:1px solid #ccc; padding:8px;")
+        stats_layout.addWidget(self.total_label)
+        stats_layout.addWidget(self.open_label)
+        stats_layout.addWidget(self.closed_label)
+        layout.addLayout(stats_layout)
+
+        # إدخال التذكرة
+        form_layout = QtWidgets.QFormLayout()
+        self.ticket_number = QtWidgets.QLineEdit()
+        self.account_name = QtWidgets.QLineEdit()
+        self.platform = QtWidgets.QComboBox()
+        self.platform.addItems(["X", "Instagram", "Email", "Phone Call"])
+        self.open_date = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
+        self.open_date.setCalendarPopup(True)
+        self.open_time = QtWidgets.QTimeEdit(QtCore.QTime.currentTime())
+        self.close_time = QtWidgets.QTimeEdit()
+        self.rem6 = QtWidgets.QCheckBox("بعد 6 ساعات")
+        self.rem24 = QtWidgets.QCheckBox("بعد 24 ساعة")
+        self.rem48 = QtWidgets.QCheckBox("بعد 48 ساعة")
+        self.close_reason = QtWidgets.QComboBox()
+        self.close_reason.addItems([
+            "", "أُغلقت بدون تذكير", 
+            "أُغلقت بعد التذكير الأول",
+            "أُغلقت بعد التذكير الثاني",
+            "أُغلقت بعد التذكير الثالث",
+            "أُغلقت لعدم الرد"
+        ])
+
+        form_layout.addRow("رقم التذكرة:", self.ticket_number)
+        form_layout.addRow("اسم الحساب:", self.account_name)
+        form_layout.addRow("المنصة:", self.platform)
+        form_layout.addRow("تاريخ الفتح:", self.open_date)
+        form_layout.addRow("وقت الفتح:", self.open_time)
+        form_layout.addRow("وقت الإغلاق:", self.close_time)
+        form_layout.addRow("تذكير:", self.rem6)
+        form_layout.addRow("", self.rem24)
+        form_layout.addRow("", self.rem48)
+        form_layout.addRow("سبب الإغلاق:", self.close_reason)
+
+        layout.addLayout(form_layout)
+
+        # الأزرار
+        btn_layout = QtWidgets.QHBoxLayout()
+        self.save_btn = QtWidgets.QPushButton("💾 حفظ التذكرة")
+        self.save_btn.setStyleSheet("background-color:#2E8B57; color:white; padding:8px;")
+        self.save_btn.clicked.connect(self.save_ticket)
+        self.search_btn = QtWidgets.QPushButton("🔍 بحث عن تذكرة")
+        self.search_btn.setStyleSheet("background-color:#4682B4; color:white; padding:8px;")
+        self.search_btn.clicked.connect(self.search_ticket)
+        btn_layout.addWidget(self.save_btn)
+        btn_layout.addWidget(self.search_btn)
+        layout.addLayout(btn_layout)
+
+        self.setLayout(layout)
+        self.update_stats()
+
+    def save_ticket(self):
+        conn = sqlite3.connect("tickets.db")
+        c = conn.cursor()
+        try:
+            c.execute("INSERT INTO tickets (ticket_number, account_name, platform, open_date, open_time, close_time, reminder_6h, reminder_24h, reminder_48h, close_reason, agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
+                self.ticket_number.text(),
+                self.account_name.text(),
+                self.platform.currentText(),
+                self.open_date.date().toString("yyyy-MM-dd"),
+                self.open_time.time().toString("HH:mm:ss"),
+                self.close_time.time().toString("HH:mm:ss"),
+                "✅" if self.rem6.isChecked() else "❌",
+                "✅" if self.rem24.isChecked() else "❌",
+                "✅" if self.rem48.isChecked() else "❌",
+                self.close_reason.currentText(),
+                self.agent
+            ))
+            conn.commit()
+            QtWidgets.QMessageBox.information(self, "نجاح", "تم حفظ التذكرة بنجاح ✅")
+            self.update_stats()
+        except sqlite3.IntegrityError:
+            QtWidgets.QMessageBox.warning(self, "خطأ", "⚠️ رقم التذكرة موجود مسبقًا")
+        conn.close()
+
+    def search_ticket(self):
+        ticket_id, ok = QtWidgets.QInputDialog.getText(self, "بحث", "أدخل رقم التذكرة:")
+        if ok and ticket_id:
+            conn = sqlite3.connect("tickets.db")
+            c = conn.cursor()
+            c.execute("SELECT * FROM tickets WHERE ticket_number=?", (ticket_id,))
+            ticket = c.fetchone()
+            conn.close()
+            if ticket:
+                QtWidgets.QMessageBox.information(self, "نتيجة البحث", f"رقم التذكرة: {ticket[1]}\nاسم الحساب: {ticket[2]}\nالمنصة: {ticket[3]}\nتاريخ الفتح: {ticket[4]}\n👤 أضيفت بواسطة: {ticket[11]}")
+            else:
+                QtWidgets.QMessageBox.warning(self, "غير موجود", "لم يتم العثور على التذكرة")
+
+    def update_stats(self):
+        conn = sqlite3.connect("tickets.db")
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM tickets")
+        total = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM tickets WHERE close_time='' OR close_time IS NULL")
+        open_tickets = c.fetchone()[0]
+        closed_tickets = total - open_tickets
+        conn.close()
+        self.total_label.setText(f"إجمالي التذاكر: {total}")
+        self.open_label.setText(f"المفتوحة: {open_tickets}")
+        self.closed_label.setText(f"المغلقة: {closed_tickets}")
+
+# ===== تشغيل التطبيق =====
+if __name__ == "__main__":
+    init_db()
+    app = QtWidgets.QApplication(sys.argv)
+    win = LoginWindow()
+    win.show()
+    sys.exit(app.exec_())
